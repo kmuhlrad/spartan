@@ -25,9 +25,9 @@ class ExploreObject(object):
 
         # self.taskRunner = TaskRunner()
 
-    def move(q):
+    def move(self, q):
     	maxJointDegreesPerSecond = 15
     	self.robotService.moveToJointPosition(q, maxJointDegreesPerSecond)
 
-    def getCurrentJointPosition():
+    def getCurrentJointPosition(self):
     	return self.robotSystem.robotStateJointController.q
