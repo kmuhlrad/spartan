@@ -368,6 +368,9 @@ if useKukaRLGDev:
     import spartan.director.iiwamanipdev
     spartan.director.iiwamanipdev.setupRLGDirector(globals())
 
+    import spartan.manipulation.explore_object
+    explore = spartan.calibration.manipulation.explore_object.ExploreObject(robotSystem)
+
     # setup the director node
 
 useROS = True
