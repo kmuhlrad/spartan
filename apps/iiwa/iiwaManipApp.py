@@ -365,16 +365,11 @@ if useKukaRLGDev:
     import spartan.calibration.handeyecalibration
     cal = spartan.calibration.handeyecalibration.HandEyeCalibration(robotSystem)
 
-    # import spartan.director.iiwamanipdev
-    # spartan.director.iiwamanipdev.setupRLGDirector(globals())
+    import spartan.director.iiwamanipdev
+    spartan.director.iiwamanipdev.setupRLGDirector(globals())
 
     import spartan.manipulation.explore_object
     explore = spartan.manipulation.explore_object.ExploreObject(robotSystem)
-
-    import spartan.manipulation.explore_object
-    explore = spartan.manipulation.explore_object.ExploreObject(robotSystem)
-
-    print "In iiwa manip app"
 
     # setup the director node
 

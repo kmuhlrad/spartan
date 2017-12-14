@@ -6,6 +6,7 @@ from spartan.utils.taskrunner import TaskRunner
 # ROS
 import rospy
 import sensor_msgs.msg
+import geometry_msgs.msg
 from cv_bridge import CvBridge, CvBridgeError
 import cv2
 
@@ -25,10 +26,10 @@ class ExploreObject(object):
         self.removeFloatingBase = removeFloatingBase
         self.maxJointDegreesPerSecond = 15
 
-        # self.taskRunner = TaskRunner()
+        self.taskRunner = TaskRunner()
 
     def move(self, q):
-    	self.robotService.moveToJointPosition(q, self.maxJointDegreesPerSecond)
+    	self.taskRunner.callOnThread(self.robotService.moveToJointPosition(q, self.maxJointDegreesPerSecond))
 
     def moveJoint(self, jointIndex, q):
         nextPosition = self.getCurrentJointPosition()
@@ -39,3 +40,18 @@ class ExploreObject(object):
         if self.removeFloatingBase:
             return self.robotSystem.robotStateJointController.q[6:]
         return self.robotSystem.robotStateJointController.q
+
+    def moveToPose(self, x, y, z):
+        pose = geometry_msgs.msg.Pose()
+        pose.position.x = x
+        pose.position.y = y
+        pose.position.z = z
+
+        poseStamped = geometry_msgs.msg.PoseStamped()
+        poseStamped.pose = pose
+        poseStamped.header.frame_id = "base"
+
+        self.robotService.moveToCartesianPosition(poseStamped, self.maxJointDegreesPerSecond)
+
+    def moveTaskRunner(self, x, y, z):
+        self.taskRunner.callOnThread(self.moveToPose, x, y, z)
