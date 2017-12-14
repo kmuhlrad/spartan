@@ -368,6 +368,11 @@ if useKukaRLGDev:
     import spartan.director.iiwamanipdev
     spartan.director.iiwamanipdev.setupRLGDirector(globals())
 
+    import spartan.manipulation.explore_object
+    explore = spartan.manipulation.explore_object.ExploreObject(robotSystem)
+
+    print "In iiwa manip app"
+
     # setup the director node
 
 useROS = True
