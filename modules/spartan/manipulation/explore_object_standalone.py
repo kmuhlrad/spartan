@@ -1,10 +1,11 @@
 # director
-from director import transformUtils
+# probably need to use ros tf now instead of this
+# from director import transformUtils
 
 # spartan
 import spartan.utils.utils as spartanUtils
 import spartan.utils.ros_utils as spartanROSUtils
-from spartan.utils.taskrunner import TaskRunner
+# from spartan.utils.taskrunner import TaskRunner
 
 # ROS
 import rospy
@@ -19,34 +20,31 @@ import robot_msgs.srv
 
 class ExploreObject(object):
 
-    def __init__(self, robotSystem, handFrame='palm', stopChannel="/stop", removeFloatingBase=True, cameraSerialNumber=1112170110):
-        self.robotSystem = robotSystem
-        self.jointNames = self.robotSystem.ikPlanner.robotModel.model.getJointNames()
-        print self.jointNames
-        if removeFloatingBase:
-            self.jointNames = self.jointNames[6:]
+    def __init__(self, handFrame='palm', stopChannel="/stop", removeFloatingBase=True, cameraSerialNumber=1112170110):
+        self.jointNames = (u'iiwa_joint_1', u'iiwa_joint_2', u'iiwa_joint_3', u'iiwa_joint_4', u'iiwa_joint_5', u'iiwa_joint_6', u'iiwa_joint_7')
         self.robotService = spartanROSUtils.RobotService(self.jointNames)
         self.handFrame = handFrame
         self.cameraSerialNumber = cameraSerialNumber
         self.removeFloatingBase = removeFloatingBase
         self.maxJointDegreesPerSecond = 15
+        self.currentJointPosition = [0]*len(self.jointNames)
 
+        rospy.Subscriber("/joint_states", sensor_msgs.msg.JointState, self.storeCurrentJointPosition)
         rospy.Subscriber(stopChannel, std_msgs.msg.Bool, self.stopCurrentPoint)
-
-        self.taskRunner = TaskRunner()
 
     def stopCurrentPoint(self, msg):
         if msg.data:
-            rospy.loginfo("stopping robot")
-            cur_loc = self.getCurrentJointPosition()
-            self.robotService.moveToJointPosition(cur_loc, self.maxJointDegreesPerSecond)
+            rospy.loginfo("stopping robot at position:")
+            rospy.loginfo(self.currentJointPosition)
+            self.robotService.moveToJointPosition(self.currentJointPosition, self.maxJointDegreesPerSecond)
             # stop the robot
             # move on to the next point
 
+    def storeCurrentJointPosition(self, msg):
+    	self.currentJointPosition = msg.position
+
     def getCurrentJointPosition(self):
-        if self.removeFloatingBase:
-            return self.robotSystem.robotStateJointController.q[6:]
-        return self.robotSystem.robotStateJointController.q
+        return self.currentJointPosition
 
     def moveJoint(self, jointIndex, q):
         nextPosition = self.getCurrentJointPosition()
@@ -103,15 +101,23 @@ class ExploreObject(object):
 
 # Just for testing standalone code
 
-# def main():
-#     rospy.init_node('explore_object_node')
-#     start = [0.39, -0.12, 0.69]
-#     point_a = [0.61, -0.1, 0.1]
-#     point_b = [0.61, 0.1, 0.1]
-#     points = [point_a, point_b]
+def main():
+    rospy.init_node('explore_object_node')
+    start = [0.39, -0.12, 0.69]
+    point_a = [0.61, -0.1, 0.1]
+    point_b = [0.61, 0.1, 0.1]
+    points = [point_a, point_b]
 
-#     explore = ExploreObject()
-#     rospy.spin()
+    explore = ExploreObject()
+    # while not rospy.is_shutdown():
+    # 	rospy.sleep(0.1)
+    
+    rospy.spin()
 
-# # if __name__ == "__main__":
-# #     main()
+if __name__ == "__main__":
+    main()
+
+'''
+Joint names passed into the ExploreObject class
+(u'iiwa_joint_1', u'iiwa_joint_2', u'iiwa_joint_3', u'iiwa_joint_4', u'iiwa_joint_5', u'iiwa_joint_6', u'iiwa_joint_7')
+'''
