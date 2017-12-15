@@ -371,6 +371,12 @@ if useKukaRLGDev:
     import spartan.manipulation.explore_object
     explore = spartan.manipulation.explore_object.ExploreObject(robotSystem)
 
+    # for testing
+    start = [0.39, -0.12, 0.69]
+    point_a = [0.61, -0.1, 0.1]
+    point_b = [0.61, 0.1, 0.1]
+    points = [point_a, point_b]
+
     # setup the director node
 
 useROS = True

@@ -1,3 +1,6 @@
+# director
+from director import transformUtils
+
 # spartan
 import spartan.utils.utils as spartanUtils
 import spartan.utils.ros_utils as spartanROSUtils
@@ -28,30 +31,77 @@ class ExploreObject(object):
 
         self.taskRunner = TaskRunner()
 
-    def move(self, q):
-    	self.taskRunner.callOnThread(self.robotService.moveToJointPosition(q, self.maxJointDegreesPerSecond))
-
-    def moveJoint(self, jointIndex, q):
-        nextPosition = self.getCurrentJointPosition()
-        nextPosition[jointIndex] = q
-        self.robotService.moveToJointPosition(nextPosition, self.maxJointDegreesPerSecond)
-
     def getCurrentJointPosition(self):
         if self.removeFloatingBase:
             return self.robotSystem.robotStateJointController.q[6:]
         return self.robotSystem.robotStateJointController.q
 
-    def moveToPose(self, x, y, z):
+    def moveJoint(self, jointIndex, q):
+        nextPosition = self.getCurrentJointPosition()
+        nextPosition[jointIndex] = q
+        self.taskRunner.callOnThread(self.robotService.moveToJointPosition, nextPosition, self.maxJointDegreesPerSecond)
+
+    def moveToPoint(self, x, y, z):
         pose = geometry_msgs.msg.Pose()
         pose.position.x = x
         pose.position.y = y
         pose.position.z = z
 
+        [0, 0, -3.14/2]
+
+        quat = transformUtils.rollPitchYawToQuaternion([0, -3.14/2, 0])
+        pose.orientation.x = quat[0]
+        pose.orientation.y = quat[1]
+        pose.orientation.z = quat[2]
+        pose.orientation.w = quat[3]
+
         poseStamped = geometry_msgs.msg.PoseStamped()
         poseStamped.pose = pose
         poseStamped.header.frame_id = "base"
 
-        self.robotService.moveToCartesianPosition(poseStamped, self.maxJointDegreesPerSecond)
+        response = self.robotService.runIK(poseStamped)
+        if not response.success:
+            rospy.loginfo("ik was not successful, returning without moving robot")
+            return
 
-    def moveTaskRunner(self, x, y, z):
-        self.taskRunner.callOnThread(self.moveToPose, x, y, z)
+        rospy.loginfo("ik was successful, moving to joint position")
+        self.robotService.moveToJointPosition(response.joint_state.position, self.maxJointDegreesPerSecond)
+        # self.robotService.moveToCartesianPosition(poseStamped, self.maxJointDegreesPerSecond)
+
+    '''
+    Robot first goes to starting point, and then returns there after every
+    point in the given list
+
+    Each point is a list of 3 numbers for x, y, and z
+    This is temporary for testing until I know the format of points
+    calculated from the point cloud.
+    '''
+    def exploreObject(self, starting_point, points_to_touch):
+        self.moveToPoint(starting_point[0], starting_point[1], starting_point[2])
+
+        for point in points_to_touch:
+            self.moveToPoint(point[0], point[1], point[2])
+
+            self.moveToPoint(starting_point[0], starting_point[1], starting_point[2])
+
+    def testExplore(self):
+        start = [0.39, -0.12, 0.69]
+        point_a = [0.61, -0.1, 0.1]
+        point_b = [0.61, 0.1, 0.1]
+        points = [point_a, point_b]
+        self.taskRunner.callOnThread(self.exploreObject, start, points)
+
+# Just for testing standalone code
+
+# def main():
+#     rospy.init_node('explore_object_node')
+#     start = [0.39, -0.12, 0.69]
+#     point_a = [0.61, -0.1, 0.1]
+#     point_b = [0.61, 0.1, 0.1]
+#     points = [point_a, point_b]
+
+#     explore = ExploreObject()
+#     rospy.spin()
+
+# # if __name__ == "__main__":
+# #     main()
