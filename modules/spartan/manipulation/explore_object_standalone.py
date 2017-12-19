@@ -116,9 +116,13 @@ to match whatever format the points are input in.
 '''
 def main():
     rospy.init_node('explore_object_node')
-    homePoint = [0.39, -0.12, 0.69]
-    pointA = [0.61, -0.1, 0.2]
-    pointB = [0.61, 0.1, 0.2]
+    # homePoint = [0.39, -0.12, 0.69]
+    # pointA = [0.61, -0.1, 0.2]
+    # pointB = [0.61, 0.1, 0.2]
+
+    homePoint = [0.49343, 0.05433, 0.78004]
+    pointA = [0.54196, 0.33889, 0.66235]
+    pointB = [0.54196, -0.33889, 0.66235]
     touchPoints = [pointA, pointB]
 
     explore = ExploreObject(homePoint, touchPoints)
