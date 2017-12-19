@@ -1,22 +1,22 @@
-# director
-# probably need to use ros tf now instead of this
-# from director import transformUtils
-
 # spartan
 import spartan.utils.utils as spartanUtils
 import spartan.utils.ros_utils as spartanROSUtils
-# from spartan.utils.taskrunner import TaskRunner
 
 # ROS
 import rospy
 import sensor_msgs.msg
 import geometry_msgs.msg
 import std_msgs.msg
+import trajectory_msgs.msg
 from cv_bridge import CvBridge, CvBridgeError
 import cv2
 
 # ROS custom
 import robot_msgs.srv
+
+# LCM
+import lcm
+from robotlocomotion import robot_plan_t
 
 class ExploreObject(object):
 
@@ -28,20 +28,45 @@ class ExploreObject(object):
         self.removeFloatingBase = removeFloatingBase
         self.maxJointDegreesPerSecond = 15
         self.currentJointPosition = [0]*len(self.jointNames)
+        self.currentPointIndex = 0
+
+        # DON'T CHEAT LIKE THIS
+        # pass in a list of these things to the constructor and then run a method to find the
+        # joint positions before doing anything else.
+        self.startCartesian = [0.39, -0.12, 0.69]
+        pointACartesian = [0.61, -0.1, 0.1]
+        pointBCartesian = [0.61, 0.1, 0.1]
+        self.touchPointsCartesian = [pointACartesian, pointBCartesian]
+
+        self.startJoints = (-0.12058246347243111, 0.023127143399094278, -0.18276864549751937, -1.4576494043747763, 0.004569309154218585, 1.6602323914142667, 2.838266963907831)
+        pointAJoint = (-2.6611123996571506, -1.5782094055315747, 1.909011570774591, -1.3806518913076944, 1.512714133799286, 1.2366488088279932, 2.249443804497624)
+        pointBJoint = (2.661198963675827, -1.5779888027013913, -1.909305574590655, -1.3806423678606443, -1.5124293697415148, 1.2364375033534523, -2.249490972237493)
+        self.touchPointsJoints = [pointAJoint, pointBJoint]
 
         rospy.Subscriber("/joint_states", sensor_msgs.msg.JointState, self.storeCurrentJointPosition)
         rospy.Subscriber(stopChannel, std_msgs.msg.Bool, self.stopCurrentPoint)
 
     def stopCurrentPoint(self, msg):
         if msg.data:
-            rospy.loginfo("stopping robot at position:")
-            rospy.loginfo(self.currentJointPosition)
-            self.robotService.moveToJointPosition(self.currentJointPosition, self.maxJointDegreesPerSecond)
-            # stop the robot
-            # move on to the next point
-
+            rospy.loginfo("stopping robot")
+            lcm_msg = robot_plan_t()
+            lcm_msg.utime = 0
+            lc = lcm.LCM()
+            lc.publish("STOP", lcm_msg.encode())
+            
+            # # stop the robot
+            # # self.robotService.moveToJointPosition(self.startJoints, self.maxJointDegreesPerSecond)
+            # self.robotService.moveToJointPosition(self.currentJointPosition, self.maxJointDegreesPerSecond)
+            # rospy.loginfo("stopping robot and returning to home position")
+            
+            # # move on to the next point
+            # rospy.loginfo("moving to next point")
+            # self.currentPointIndex += 1
+            # if self.currentPointIndex < len(self.touchPointsJoints):
+            #     exploreObjectStartingFromIndex(self.currentPointIndex)
+            
     def storeCurrentJointPosition(self, msg):
-    	self.currentJointPosition = msg.position
+        self.currentJointPosition = msg.position
 
     def getCurrentJointPosition(self):
         return self.currentJointPosition
@@ -76,6 +101,27 @@ class ExploreObject(object):
         self.robotService.moveToJointPosition(response.joint_state.position, self.maxJointDegreesPerSecond)
         # self.robotService.moveToCartesianPosition(poseStamped, self.maxJointDegreesPerSecond)
 
+    def setJointVelocities(self, velocities):
+        rospy.wait_for_service('/robot_control/SendJointTrajectory')
+        s = rospy.ServiceProxy('robot_control/SendJointTrajectory', robot_msgs.srv.SendJointTrajectory)
+
+        traj = trajectory_msgs.msg.JointTrajectory()
+
+        traj.joint_names = self.jointNames
+
+        p = trajectory_msgs.msg.JointTrajectoryPoint()
+        p.velocities = velocities # I might still need to set the position to the current joint position
+
+        traj.points.append(p)
+
+        response = s(traj)
+
+        if not response.success:
+            rospy.loginfo("trajectory was not successful, returning without moving robot")
+            return
+
+        rospy.loginfo("trajectory was successful, moving to joint velocity")
+
     '''
     Robot first goes to starting point, and then returns there after every
     point in the given list
@@ -84,20 +130,25 @@ class ExploreObject(object):
     This is temporary for testing until I know the format of points
     calculated from the point cloud.
     '''
-    def exploreObject(self, starting_point, points_to_touch):
-        self.moveToPoint(starting_point[0], starting_point[1], starting_point[2])
+    def exploreObject(self):
+        self.robotService.moveToJointPosition(self.startJoints, self.maxJointDegreesPerSecond)
 
-        for point in points_to_touch:
-            self.moveToPoint(point[0], point[1], point[2])
+        for point in self.touchPointsJoints:
+            self.robotService.moveToJointPosition(point, self.maxJointDegreesPerSecond)
+            rospy.loginfo("joint position:")
+            rospy.loginfo(point)
+            self.currentPointIndex += 1
+            self.robotService.moveToJointPosition(self.startJoints, self.maxJointDegreesPerSecond)
 
-            self.moveToPoint(starting_point[0], starting_point[1], starting_point[2])
+    def exploreObjectStartingFromIndex(self, index):
+        self.robotService.moveToJointPosition(self.startJoints, self.maxJointDegreesPerSecond)
 
-    def testExplore(self):
-        start = [0.39, -0.12, 0.69]
-        point_a = [0.61, -0.1, 0.1]
-        point_b = [0.61, 0.1, 0.1]
-        points = [point_a, point_b]
-        self.taskRunner.callOnThread(self.exploreObject, start, points)
+        for i in range(self.currentPointIndex, len(self.touchPointsJoints)):
+            self.robotService.moveToJointPosition(self.touchPointsJoints[i], self.maxJointDegreesPerSecond)
+            rospy.loginfo("joint position:")
+            rospy.loginfo(point)
+            self.currentPointIndex += 1
+            self.robotService.moveToJointPosition(self.startJoints, self.maxJointDegreesPerSecond)
 
 # Just for testing standalone code
 
@@ -109,8 +160,9 @@ def main():
     points = [point_a, point_b]
 
     explore = ExploreObject()
+    # explore.exploreObject()
     # while not rospy.is_shutdown():
-    # 	rospy.sleep(0.1)
+    #   rospy.sleep(0.1)
     
     rospy.spin()
 
