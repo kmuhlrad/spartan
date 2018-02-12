@@ -156,7 +156,7 @@ class RobotService(object):
 
 class HandEyeCalibration(object):
 
-    def __init__(self, robotSystem, handFrame='palm', cameraSerialNumber="", configFilename=None):
+    def __init__(self, robotSystem, handFrame='wsg_50_base_link', cameraSerialNumber="", configFilename=None):
         self.robotSystem = robotSystem
         self.configFilename = configFilename
         self.robotService = RobotService(robotSystem)
@@ -742,7 +742,7 @@ class HandEyeCalibration(object):
         return p
 
     def computeSingleCameraPose(self, targetLocationWorld=[1,0,0], cameraFrameLocation=[0.22, 0, 0.89]):
-        cameraAxis = [0,-1,0] # assuming we are using 'palm' as the link frame
+        cameraAxis = [0,0,1]
 
         linkName = self.handFrame
         linkName = 'iiwa_link_7'

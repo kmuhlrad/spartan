@@ -47,6 +47,23 @@ def ROSTransformMsgFromPose(d):
 
     return msg
 
+def dictToPointMsg(d):
+    msg = geometry_msgs.msg.Point()
+    msg.x = d['x']
+    msg.y = d['y']
+    msg.z = d['z']
+
+    return msg
+
+def listToPointMsg(l):
+    msg = geometry_msgs.msg.Point()
+    
+    msg.x = l[0]
+    msg.y = l[1]
+    msg.z = l[2]
+
+    return msg
+
 
 """
 Convert pointcloud from 32FC to 16UC format
@@ -122,9 +139,9 @@ class SimpleSubscriber(object):
         self.hasNewMessage = False
         self.lastMsg = None
 
-    def start(self):
-        self.subscriber = rospy.Subscriber(self.topic, self.messageType, self.callback)
-
+    def start(self, queue_size=None):
+        self.subscriber = rospy.Subscriber(self.topic, self.messageType, self.callback, queue_size=queue_size)
+        
     def stop(self):
         self.subscriber.unregister()
 
@@ -150,27 +167,20 @@ class RobotService(object):
         self.jointNames = jointNames
         self.numJoints = len(jointNames)
 
-    def moveToJointPosition(self, q, maxJointDegreesPerSecond=30):
+    def moveToJointPosition(self, q, maxJointDegreesPerSecond=30, timeout=10):
         assert len(q) == self.numJoints
 
-        jointState = sensor_msgs.msg.JointState()
-        jointState.header.stamp = rospy.Time.now()
+        jointState = RobotService.jointPositionToJointStateMsg(self.jointNames, q)
 
-        jointState.position = q
-        jointState.name = self.jointNames
-
-        jointState.velocity = [0] * self.numJoints
-        jointState.effort = [0] * self.numJoints
-
-        rospy.wait_for_service('robot_control/MoveToJointPosition')
+        rospy.wait_for_service('robot_control/MoveToJointPosition', timeout=timeout)
         s = rospy.ServiceProxy('robot_control/MoveToJointPosition', robot_msgs.srv.MoveToJointPosition)
         response = s(jointState, maxJointDegreesPerSecond)
         
         return response
 
-    def moveToCartesianPosition(self, poseStamped, maxJointDegreesPerSecond=30):
+    def moveToCartesianPosition(self, poseStamped, maxJointDegreesPerSecond=30, timeout=10):
         ikServiceName = 'robot_control/IkService'
-        rospy.wait_for_service(ikServiceName)
+        rospy.wait_for_service(ikServiceName, timeout=timeout)
         s = rospy.ServiceProxy(ikServiceName, robot_msgs.srv.RunIK)
         response = s(poseStamped)
 
@@ -185,17 +195,53 @@ class RobotService(object):
         rospy.loginfo("ik was successful, moving to joint position")
         return self.moveToJointPosition(joint_state.position, maxJointDegreesPerSecond=maxJointDegreesPerSecond)
 
-    def runIK(self, poseStamped):
+    def runIK(self, poseStamped, seedPose=None, nominalPose=None, timeout=10):
+
+        req = robot_msgs.srv.RunIKRequest()
+        req.pose_stamped = poseStamped
+
+        if seedPose:
+            req.seed_pose.append(RobotService.jointPositionToJointStateMsg(self.jointNames, seedPose))
+
+        if nominalPose:
+            req.nominal_pose.append(RobotService.jointPositionToJointStateMsg(self.jointNames, nominalPose))
+
         ikServiceName = 'robot_control/IkService'
-        rospy.wait_for_service(ikServiceName)
+        rospy.wait_for_service(ikServiceName, timeout=timeout)
         s = rospy.ServiceProxy(ikServiceName, robot_msgs.srv.RunIK)
-        response = s(poseStamped)
+        response = s(req)
 
         joint_state = response.joint_state
 
         rospy.loginfo("ik was successful = %s", response.success)
         return response
 
+    @staticmethod
+    def jointPositionToJointStateMsg(jointNames, jointPositions):
+        assert len(jointNames) == len(jointPositions)
+
+        numJoints = len(jointNames)
+
+        jointState = sensor_msgs.msg.JointState()
+        jointState.header.stamp = rospy.Time.now()
+
+        jointState.position = jointPositions
+        jointState.name = jointNames
+
+        jointState.velocity = [0] * numJoints
+        jointState.effort = [0] * numJoints
+
+        return jointState
+
+
+
+    @staticmethod
+    def makeKukaRobotService():
+        jointNames = ['iiwa_joint_1', 'iiwa_joint_2', 'iiwa_joint_3',
+     'iiwa_joint_4', 'iiwa_joint_5', 'iiwa_joint_6',
+     'iiwa_joint_7']
+
+        return RobotService(jointNames)
 
 
 

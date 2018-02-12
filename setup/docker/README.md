@@ -16,7 +16,7 @@ sudo apt-get install -y nvidia-docker
 ```
 You can test that your nvidia-docker installation is working by running
 ```
-docker run --runtime=nvidia --rm nvidia/cuda nvidia-smi
+nvidia-docker run --rm nvidia/cuda nvidia-smi
 ```
 If you get errors about nvidia-modprobe not being installed, install it by running
 ```
@@ -24,7 +24,7 @@ sudo apt-get install nvidia-modprobe
 ```
 and then restart your machine.
 
-3) Clone, setup, and build Spartan:
+3) Clone, setup, and build Spartan: You need to have ssh keys setup to clone the submodules. Make sure that these ssh keys don't have a password, otherwise it will not work.
 ```
 git clone git@github.com:RobotLocomotion/spartan.git
 cd spartan

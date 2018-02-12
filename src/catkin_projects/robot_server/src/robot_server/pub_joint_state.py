@@ -19,6 +19,7 @@ from std_msgs.msg import Header
 # ROS custom packages
 from robot_msgs.srv import *
 from robot_msgs.msg import *
+from wsg50_msgs.msg import *
 
 class JointStatePublisher:
     def __init__(self):
@@ -34,16 +35,19 @@ class JointStatePublisher:
 
         self.lc = lcm.LCM()
         self.lc.subscribe("IIWA_STATUS", self.onIiwaStatus)
+        self.gripper_subscriber = rospy.Subscriber("/schunk_driver/schunk_wsg_status", 
+            WSG_50_state, self.onSchunkStatus, queue_size=1)
+
         #gripper_sub = self.lc.subscribe("command_topic", self.gripper_sub)
         
         # self.base_names = ['base_x', 'base_y', 'base_theta']
         self.iiwa_joint_names = ['iiwa_joint_1', 'iiwa_joint_2', 'iiwa_joint_3', 'iiwa_joint_4', 'iiwa_joint_5', 'iiwa_joint_6', 'iiwa_joint_7']
-        #self.gripper_names = ['robotiq_hand'] # !! Jay, maybe want the "actual" name...not that it matters...
+        self.gripper_names = ['wsg_50_base_joint_gripper_left', 'wsg_50_base_joint_gripper_right']
 
         self.joints = []
         # self.joints.extend(self.base_names)
         self.joints.extend(self.iiwa_joint_names)
-        #self.joints.extend(self.gripper_names)
+        self.joints.extend(self.gripper_names)
 
         idx = 0
         for j in xrange(0, len(self.joints)):
@@ -55,25 +59,7 @@ class JointStatePublisher:
             idx = idx + 1
 
     def onIiwaStatus(self, channel, data):
-        ros_time_now =  rospy.Time.now()
-        
         msg = lcmt_iiwa_status.decode(data)
-
-        print "##############################"
-        ros_time_converted_from_lcm = rospy.Time(0,msg.utime*1000)
-        print ros_time_converted_from_lcm, "is a rospy time created from the lcm timestamp"
-
-        # latency debug printing
-        lcm_time_stamp_utime = msg.utime
-        print lcm_time_stamp_utime, "is utime from lcm"
-        print ros_time_now, "is rospy time"
-        print ros_time_now.to_sec(), "is rospy time.to_sec()"
-        print ros_time_now.to_nsec()/1000, "is rospy time.to_nsec()/1000"
-        print type(ros_time_now.to_nsec()), type(lcm_time_stamp_utime)
-        ros_time_converted_from_lcm_utime = ros_time_converted_from_lcm.to_nsec()/1000
-        print ros_time_converted_from_lcm_utime - lcm_time_stamp_utime, "is offset"
-        print 
-
         for data_idx in xrange(0, len(self.iiwa_joint_names)):
             joint_name = self.iiwa_joint_names[data_idx]
             if joint_name in self.joint_idx:
@@ -82,17 +68,42 @@ class JointStatePublisher:
                 self.joint_velocities[idx] = msg.joint_velocity_estimated[data_idx] # TODO(gizatt) See which other fields are valid and add them here
                 self.joint_efforts[idx] = msg.joint_torque_measured[data_idx]
 
-        self.publishROSJointStateMessage(ros_time_converted_from_lcm)
+        # We *should* be using the sunrise cabinet time.
+        # But it's not always well synchronized with our time,
+        # (e.g. at time of writing, it was off by hours and was
+        # messing up the TF server), so for now I'm approximating with
+        # our local system time. -gizatt
+        self.publishROSJointStateMessage()
+
+    def onSchunkStatus(self, msg):
+        ros_time_now =  rospy.Time.now()
+        
+
+        # Left finger
+        idx = self.joint_idx['wsg_50_base_joint_gripper_left']
+        self.joint_positions[idx] = -msg.position_mm * 0.0005
+        self.joint_velocities[idx] = -msg.speed_mm_per_s * 0.0005
+        self.joint_efforts[idx] = -msg.force
+
+        # Right finge
+        idx = self.joint_idx['wsg_50_base_joint_gripper_right']
+        self.joint_positions[idx] = msg.position_mm * 0.0005
+        self.joint_velocities[idx] = msg.speed_mm_per_s * 0.0005
+        self.joint_efforts[idx] = msg.force
+        
+        # This could be enabled, but I'm going to let Iiwa
+        # statuses be the driver of when status gets
+        # published out, to avoid unnecessary traffic.
+        # self.publishROSJointStateMessage(ros_time_now)
 
 
     def run(self):
         self.lc.handle_timeout(0.005)
-        #print "LOOPING INSIDE pub_joint_state"
-        #print ""
+        self.publishROSJointStateMessage()
 
-    def publishROSJointStateMessage(self, ros_time_now_previously_grabbed):
+    def publishROSJointStateMessage(self):
         self.robot_state.header = Header()
-        self.robot_state.header.stamp = ros_time_now_previously_grabbed
+        self.robot_state.header.stamp = rospy.Time.now()
         self.robot_state.name = self.joint_names
         self.robot_state.position = self.joint_positions
         self.robot_state.velocity = self.joint_velocities

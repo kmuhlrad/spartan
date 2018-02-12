@@ -23,14 +23,20 @@ endif()
 # Options
 option(WITH_PERCEPTION "Build with perception libraries and tools." ON)
 option(WITH_SNOPT "Build drake with support for the SNOPT solver." ON)
+option(WITH_GUROBI "Build with support for Gurobi" OFF)
+option(WITH_MOSEK "Build with support for MOSEK" OFF)
+
+# Intended to install the SAME version as Drake uses internally.
+# However, the SHAs are currently not synced (I don't know how to
+# write that kind of bazel query).
+option(WITH_BULLET3 "Build a complete version of Bullet, and install pybullet support." OFF)
 
 option(WITH_IIWA_DRIVER_RLG "Build drake-iiwa-driver, RLG version." ON)
 option(WITH_IIWA_DRIVER_TRI "Build drake-iiwa-driver, TRI version." OFF)
-option(WITH_SCHUNK_DRIVER "Build drake-schunk-driver." ON)
 option(WITH_ROS "Build the catkin-workspace projects." ON)
 option(WITH_REACHABILITY_ANALYZER "Build a reachability analyzer (better with snopt)" OFF)
 option(WITH_TRIMESH "Build trimesh, a python utility for working with triangle meshes" OFF)
-
+option(WITH_DRAKE_IIWA_SIM "Build IIWA full system simulation with Drake tools?" OFF)
 
 # Setup external projects
 include(ExternalProject)
@@ -45,6 +51,8 @@ foreach(proj drake director signal-scope)
   endif()
 endforeach()
 
+list(INSERT CMAKE_MODULE_PATH 0 "${PROJECT_SOURCE_DIR}/cmake/modules")
+
 set(CMAKE_ARGS_FOR_EXTERNALS
   -DBUILD_SHARED_LIBS:BOOL=${BUILD_SHARED_LIBS}
   "-DCMAKE_BUILD_TYPE:STRING=${CMAKE_BUILD_TYPE}"
@@ -58,96 +66,51 @@ set(CMAKE_ARGS_FOR_EXTERNALS
   "-DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_INSTALL_PREFIX}"
   "-DCMAKE_PREFIX_PATH:PATH=${CMAKE_INSTALL_PREFIX}"
   "-DCMAKE_SHARED_LINKER_FLAGS:STRING=${CMAKE_SHARED_LINKER_FLAGS}"
-  -DCMAKE_VERBOSE_MAKEFILE:BOOL=${CMAKE_VERBOSE_MAKEFILE}
+  "-DCMAKE_VERBOSE_MAKEFILE:BOOL=${CMAKE_VERBOSE_MAKEFILE}"
+  "-DCMAKE_MODULE_PATH:STRING=${CMAKE_MODULE_PATH}"
 )
 
-find_program(CP cp)
-find_program(BAZEL bazel)
-if(NOT BAZEL)
-  message(FATAL_ERROR "Could NOT find bazel executable")
-endif()
-if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-  set(BAZEL_COMPILATION_MODE dbg)
-else()
-  set(BAZEL_COMPILATION_MODE opt)
-endif()
-set(BAZEL_ENV CC=${CMAKE_C_COMPILER} CXX=${CMAKE_CXX_COMPILER})
-set(BAZEL_DRAKE_STARTUP_ARGS "--output_base=/$ENV{HOME}/.spartan-build/drake-build")
-set(BAZEL_ARGS --compilation_mode=${BAZEL_COMPILATION_MODE} --config=unsupported_crosstool --cxxopt=-std=c++1y --host_cxxopt=-std=c++1y)
-if(CMAKE_VERBOSE_MAKEFILE)
-  set(BAZEL_ARGS --subcommands ${BAZEL_ARGS})
-endif()
-if(WITH_SNOPT)
-  set(BAZEL_ARGS --config=snopt ${BAZEL_ARGS})
-endif()
-
-# Check that compiler is NOT ccache. Ccache is not compatible with bazel.
-# "readlink -f" is not available on MacOS. We use a one-liner python script
-# to get the result that "readlink -f" would give on Linux.
-execute_process(
-  COMMAND python -c "import os,sys; print(os.path.realpath(os.path.expanduser(sys.argv[1])))" "${CMAKE_CXX_COMPILER}"
-  RESULT_VARIABLE COMPILER_RESULT
-  OUTPUT_VARIABLE COMPILER_OUTPUT
-  )
-if(COMPILER_RESULT)
-  message(FATAL_ERROR "Error while running the compiler ${CMAKE_CXX_COMPILER}.")
-endif()
-get_filename_component(COMPILER_NAME ${COMPILER_OUTPUT} NAME)
-string(STRIP ${COMPILER_NAME} COMPILER_NAME)
-if("${COMPILER_NAME}" STREQUAL "ccache")
-  message(FATAL_ERROR
-"Compiler is `ccache`. `ccache` is not compatible with `bazel` which is used to compile `drake`.
-To use `ccache` to compile the rest of the project, use the CMake or environment variables \
-CMAKE_C_COMPILER_LAUNCHER and CMAKE_CXX_COMPILER_LAUNCHER to set the path to `ccache`."
-)
-endif()
-
-
-# Add external projects
-# NOTE: For bazel < 0.5.2, two external projects that use Bazel must not build simultaneously.
-# One can depend on another one, which will force the order in which they are built.
 ExternalProject_Add(drake
     SOURCE_DIR ${source_dir}/drake
+    BINARY_DIR ${build_dir}/drake
     BUILD_ALWAYS 1
-    BUILD_IN_SOURCE 1
-    USES_TERMINAL_BUILD 1
-    CONFIGURE_COMMAND ""
-    BUILD_COMMAND ${BAZEL_ENV} "${BAZEL}" ${BAZEL_DRAKE_STARTUP_ARGS} build ${BAZEL_ARGS} //drake/examples/kuka_iiwa_arm/... //:install @optitrack_driver//src:optitrack_client
-    INSTALL_COMMAND ${BAZEL_ENV} "${BAZEL}" ${BAZEL_DRAKE_STARTUP_ARGS} run ${BAZEL_ARGS} //:install -- "${CMAKE_INSTALL_PREFIX}"
+    CMAKE_CACHE_ARGS
+      -DWITH_SNOPT:BOOL=${WITH_SNOPT}
+      -DWITH_GUROBI:BOOL=${WITH_GUROBI}
+      -DWITH_MOSEK:BOOL=${WITH_MOSEK}
+      ${CMAKE_ARGS_FOR_EXTERNALS}
+    INSTALL_COMMAND ""
 )
-# This is based on drake's VTK/Qt dependency (see `tools/vtk.bzl` in drake).
-# On MacOS, Drake uses homebrew VTK compiled with Qt5 and brew Python
-# On Linux, checks distribution
-# Ubuntu 14.04: Drake downloads a precompiled version of VTK compiled with Qt4
-# Ubuntu 16.04: Drake downloads a precompiled version of VTK compiled with Qt5
-# Otherwise, assume Qt5
+
+
+set(LCM_PYTHON_DIR_HINTS "${CMAKE_INSTALL_PREFIX}/lib/python2.7/site-packages")
+
+ExternalProject_Add(libbot
+    SOURCE_DIR ${build_dir}/externals/libbot
+    BINARY_DIR ${build_dir}/libbot
+    GIT_REPOSITORY "https://github.com/RobotLocomotion/libbot2.git"
+    GIT_TAG "b47cc520aaf8f97c7cfcf370827b3345bca061c3"
+    BUILD_ALWAYS 1
+    CMAKE_CACHE_ARGS
+      -DLCM_PYTHON_DIR_HINTS:FILEPATH=${LCM_PYTHON_DIR_HINTS}
+      ${CMAKE_ARGS_FOR_EXTERNALS}
+    DEPENDS drake
+)
+
 set(USED_QTVERSION 5)
+# On MacOS, Drake uses homebrew VTK compiled with Qt5 and brew Python
 if(APPLE)
   # VTK version used by drake
   set(VTK_INSTALL_DIR /usr/local/opt/vtk@8.0)
+  # To configure `director`
   set(VTK_ARGS
     -DVTK_DIR:PATH=${VTK_INSTALL_DIR}/lib/cmake/vtk-8.0
     -DPYTHON_CONFIG_EXECUTABLE:FILEPATH=/usr/local/bin/python2.7-config
   )
-  set(QT_ARGS -DQt5_DIR:PATH=/usr/local/opt/qt/lib/cmake/Qt5)
+  # To configure `config/setup_environment.sh.in`
   set(VTK_PYTHON_DIR ${VTK_INSTALL_DIR}/lib/python2.7/site-packages)
-elseif(UNIX)
-  find_program(SED sed)
-  if(NOT SED)
-    message(FATAL_ERROR "Could NOT find sed executable")
-  endif()
-  execute_process(COMMAND "${SED}" -n "/^\\(NAME\\|VERSION_ID\\)=/{s/[^=]*=//;s/\"//g;p}" /etc/os-release
-    RESULT_VARIABLE SED_RESULT
-    OUTPUT_VARIABLE SED_OUTPUT
-  )
-  if(SED_RESULT)
-    message(FATAL_ERROR "Could NOT determine Linux distribution information")
-  endif()
- string(REGEX REPLACE "\n" " " LINUX_DISTRIBUTION "${SED_OUTPUT}")
- string(STRIP ${LINUX_DISTRIBUTION} LINUX_DISTRIBUTION)
- if(LINUX_DISTRIBUTION STREQUAL "Ubuntu 14.04")
-   set(USED_QTVERSION 4)
- endif()
+  # For signal-scope
+  set(QT_ARGS -DQt5_DIR:PATH=/usr/local/opt/qt/lib/cmake/Qt5)
 endif()
 
 ExternalProject_Add(director
@@ -166,12 +129,24 @@ ExternalProject_Add(director
     -DUSE_SYSTEM_VTK:BOOL=ON
     ${VTK_ARGS}
     -DUSE_PCL:BOOL=${WITH_PERCEPTION}
-    -DUSE_APRILTAGS:BOOL=${WITH_PERCEPTION}
+    -DUSE_APRILTAGS:BOOL=OFF
     -DUSE_OPENNI2_LCM:BOOL=OFF # don't build OPENNI2 driver, conflicts with openni2_launch in ROS
     -DUSE_PERCEPTION:BOOL=${WITH_PERCEPTION}
     ${CMAKE_ARGS_FOR_EXTERNALS}
   INSTALL_COMMAND ""
-  DEPENDS drake
+  DEPENDS libbot drake
+)
+
+ExternalProject_Add(pybind11
+  SOURCE_DIR ${build_dir}/externals/pybind11
+  BINARY_DIR ${build_dir}/pybind11
+  GIT_REPOSITORY git@github.com:pybind/pybind11
+  GIT_TAG v2.2.1
+  BUILD_ALWAYS 1
+  CMAKE_CACHE_ARGS
+    ${CMAKE_ARGS_FOR_EXTERNALS}
+    -DPYBIND11_INSTALL:BOOL=ON
+    -DPYBIND11_TEST:BOOL=OFF
 )
 
 ExternalProject_Add(common_utils
@@ -232,6 +207,44 @@ if (WITH_REACHABILITY_ANALYZER)
   )
 endif()
 
+if (WITH_BULLET3)
+  set(BULLET3_GIT_REPOSITORY
+  "git@github.com:bulletphysics/bullet3.git"
+  CACHE STRING
+  "Location of bullet3 repo.")
+
+  # Different than Drake's version -- see
+  # spartan/drake/WORKSPACE for Drake's version (2.86.1,
+  # as of writing)
+  # We need something recent enough to have exact python
+  # version matching supported.
+  set(BULLET3_GIT_TAG "c0619ac92408788d7fa72fa787b3b47ab08b5d2d")
+
+  # Extra arguments lifted from bullet install helper:
+  # https://github.com/bulletphysics/bullet3/blob/master/build_cmake_pybullet_double.sh
+  # I'm making this depend on Drake so it's guaranteed to
+  # install after Drake. We're installing a different
+  # version than Drake (2.86.1 vs post-2.87), which is risky
+  # enough already.
+  ExternalProject_Add(bullet3
+    SOURCE_DIR ${build_dir}/externals/bullet3
+    BINARY_DIR ${build_dir}/bullet3
+    GIT_REPOSITORY "${BULLET3_GIT_REPOSITORY}"
+    GIT_TAG "${BULLET3_GIT_TAG}"
+    BUILD_ALWAYS 1
+    CMAKE_CACHE_ARGS
+      ${CMAKE_ARGS_FOR_EXTERNALS}
+      -DBUILD_PYBULLET:BOOL=ON
+      -DBUILD_PYBULLET_NUMPY:BOOL=ON
+      -DPYTHON_VERSION_PYBULLET:STRING=2.7
+      -DEXACT_PYTHON_VERSION:BOOL=ON
+      -DUSE_DOUBLE_PRECISION:BOOL=ON
+    INSTALL_COMMAND make install && mkdir -p ${CMAKE_INSTALL_PREFIX}/lib/python2.7/site-packages/ && cp ${build_dir}/bullet3/examples/pybullet/pybullet.so ${CMAKE_INSTALL_PREFIX}/lib/python2.7/site-packages
+    DEPENDS drake
+  )
+
+endif()
+
 if (WITH_TRIMESH)
     find_package(PythonInterp REQUIRED)
 
@@ -249,7 +262,7 @@ if (WITH_TRIMESH)
         BUILD_ALWAYS 1
         CONFIGURE_COMMAND ""
         BUILD_COMMAND ""
-        INSTALL_COMMAND mkdir -p ${CMAKE_INSTALL_PREFIX}/bin/ && ${CP} ${build_dir}/externals/v-hacd/bin/linux/testVHACD ${CMAKE_INSTALL_PREFIX}/bin/testVHACD
+        INSTALL_COMMAND mkdir -p ${CMAKE_INSTALL_PREFIX}/bin/ && cp ${build_dir}/externals/v-hacd/bin/linux/testVHACD ${CMAKE_INSTALL_PREFIX}/bin/testVHACD
       )
     else()
       message(FATAL_ERROR "Not using linux, don't know how to install v-hacd.")
@@ -269,23 +282,23 @@ if (WITH_TRIMESH)
       GIT_TAG "${TRIMESH_GIT_TAG}"
       BUILD_ALWAYS 1
       BUILD_COMMAND python setup.py build
-      INSTALL_COMMAND mkdir -p ${CMAKE_INSTALL_PREFIX}/lib/python2.7/site-packages && ${CP} -r ${build_dir}/externals/trimesh/build/lib.linux-x86_64-2.7/trimesh ${CMAKE_INSTALL_PREFIX}/lib/python2.7/site-packages/
+      INSTALL_COMMAND mkdir -p ${CMAKE_INSTALL_PREFIX}/lib/python2.7/site-packages && cp -r ${build_dir}/externals/trimesh/build/lib.linux-x86_64-2.7/trimesh ${CMAKE_INSTALL_PREFIX}/lib/python2.7/site-packages/
       BUILD_IN_SOURCE 1
       DEPENDS v-hacd
     )
 endif()
 
-if (OFF)
-  ExternalProject_Add(ObjectDetection
-    SOURCE_DIR ${source_dir}/src/ObjectDetection
-    BINARY_DIR ${build_dir}/ObjectDetection
-    BUILD_ALWAYS 1
-    CMAKE_CACHE_ARGS
-      ${CMAKE_ARGS_FOR_EXTERNALS}
-    DEPENDS director RemoteTreeViewer
-  )
+# if (OFF)
+#   ExternalProject_Add(ObjectDetection
+#     SOURCE_DIR ${source_dir}/src/ObjectDetection
+#     BINARY_DIR ${build_dir}/ObjectDetection
+#     BUILD_ALWAYS 1
+#     CMAKE_CACHE_ARGS
+#       ${CMAKE_ARGS_FOR_EXTERNALS}
+#     DEPENDS director RemoteTreeViewer
+#   )
 
-endif()
+# endif()
 
 if (WITH_IIWA_DRIVER_RLG OR WITH_IIWA_DRIVER_TRI)
   set(IIWA_DRIVER_GIT_REPOSITORY
@@ -299,7 +312,7 @@ if (WITH_IIWA_DRIVER_RLG OR WITH_IIWA_DRIVER_TRI)
 
   if (WITH_IIWA_DRIVER_RLG)
     set(IIWA_DRIVER_GIT_TAG
-    "35909735606d96d0bdf3fd9895b534d50360a77e"
+    "cfc11b90fef6a97b7f06566f11970d31556ad3cc"
     )
   endif()
 
@@ -325,24 +338,6 @@ if (WITH_IIWA_DRIVER_RLG OR WITH_IIWA_DRIVER_TRI)
 
 endif()
 
-if (WITH_SCHUNK_DRIVER)
-
-  ExternalProject_Add(drake-schunk-driver
-    SOURCE_DIR ${build_dir}/externals/drake-schunk-driver
-    GIT_REPOSITORY git@github.com:RobotLocomotion/drake-schunk-driver.git
-    GIT_TAG a28d35c
-    BUILD_ALWAYS 1
-    BUILD_IN_SOURCE 1
-    USES_TERMINAL_BUILD 1
-    CONFIGURE_COMMAND ""
-    BUILD_COMMAND ${BAZEL_ENV} "${BAZEL}" build //...
-    INSTALL_COMMAND
-      mkdir -p ${build_dir}/install/bin/ && "${CP}" ${build_dir}/externals/drake-schunk-driver/bazel-bin/src/schunk_driver ${CMAKE_INSTALL_PREFIX}/bin/schunk_driver &&
-      chmod ug+w ${CMAKE_INSTALL_PREFIX}/bin/schunk_driver
-    DEPENDS drake
-  )
-
-endif()
 
 if (WITH_ROS)
   if ((NOT DEFINED ENV{CMAKE_PREFIX_PATH}) OR (NOT $ENV{CMAKE_PREFIX_PATH} MATCHES ".*ros.*"))
@@ -359,7 +354,8 @@ if (WITH_ROS)
       ${CMAKE_ARGS_FOR_EXTERNALS}
       # Combine environment prefix path (with ROS) with our own
       "-DCMAKE_PREFIX_PATH:PATH=${CMAKE_INSTALL_PREFIX};${CMAKE_PREFIX_PATH_ENV}"
-    DEPENDS drake director common_utils RemoteTreeViewer
+      -DWITH_DRAKE_IIWA_SIM:BOOL=${WITH_DRAKE_IIWA_SIM}
+    DEPENDS drake director common_utils
   )
 endif()
 

@@ -1,4 +1,4 @@
-FROM nvidia/cuda:8.0-devel-ubuntu16.04
+    FROM nvidia/cuda:8.0-devel-ubuntu16.04
 
 ARG USER_NAME
 ARG USER_PASSWORD
@@ -16,6 +16,7 @@ RUN usermod -u $USER_ID $USER_NAME
 RUN groupmod -g $USER_GID $USER_NAME
 
 
+# working directory is /home/$USER_NAME
 WORKDIR /home/$USER_NAME
 # require no sudo pw in docker
 # RUN echo $USER_PASSWORD | sudo -S bash -c 'echo "'$USER_NAME' ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/docker-user' && printf "\n"
@@ -32,18 +33,18 @@ RUN yes "Y" | /tmp/drake_install_prereqs.sh
 COPY ./director/distro/travis/install_deps.sh /tmp/director_travis_install_prereqs.sh
 RUN yes "Y" | TRAVIS_OS_NAME=linux /tmp/director_travis_install_prereqs.sh
 
-# build elastic fusion
-COPY ./setup/docker/install_elasticfusion.sh /tmp/install_elasticfusion.sh
-RUN yes "Y" | /tmp/install_elasticfusion.sh
-ENV ELASTIC_FUSION_EXECUTABLE=/home/$USER_NAME/ElasticFusion/install/bin/ElasticFusion
-
 # set the terminator inside the docker container to be a different color
 RUN mkdir -p .config/terminator
 COPY ./setup/docker/terminator_config .config/terminator/config
 RUN chown $USER_NAME:$USER_NAME -R .config
 
+# setup bazel bashrc
+RUN echo "startup --output_base=/home/$USER_NAME/.spartan-build" >> .bazelrc
+
 # change ownership of everything to our user
-RUN chown $USER_NAME:$USER_NAME -R .
+RUN cd /home/$USER_NAME && chown $USER_NAME:$USER_NAME -R .
+
+
 
 ENTRYPOINT bash -c "source ~/spartan/setup/docker/entrypoint.sh && /bin/bash"
 

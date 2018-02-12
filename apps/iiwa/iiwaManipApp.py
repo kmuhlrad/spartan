@@ -20,7 +20,7 @@ from director import drcargs
 
 
 try:
-    from director.optitrackvisualizer import OptitrackVisualizer
+    from spartan.optitrack.optitrackvisualizer import OptitrackVisualizer
     useOptitrackVisualizer = True
 
 except ImportError:
@@ -36,7 +36,6 @@ import drake as lcmdrake
 import bot_core as lcmbotcore
 
 from spartan.manipulation.director_schunk_driver import DirectorSchunkDriver
-
 
 def setTagToWorld(pos, rpy):
     global tagToWorld
@@ -153,25 +152,17 @@ def newCameraView(imageManager, channelName='OPENNI_FRAME', cameraName='OPENNI_F
 
     return cameraView
 
-
-def sendGripperCommand(targetPositionMM, force):
-    msg = lcmdrake.lcmt_schunk_wsg_command()
-    msg.utime = int(time.time()*1e6)
-    msg.force = force
-    msg.target_position_mm = targetPositionMM
-    lcmUtils.publish('SCHUNK_WSG_COMMAND', msg)
-
-
-def gripperOpen():
-    sendGripperCommand(100, 40)
-
-
-def gripperClose():
-    sendGripperCommand(0, 40)
-
-
-
-schunkDriver = DirectorSchunkDriver()
+def wsgStatusSubscriberCallback(msg):
+    for model in [robotSystem.robotStateModel,
+                  robotSystem.teleopRobotModel,
+                  robotSystem.playbackRobotModel]:
+        model.model.setJointPositions(
+            # divide in two (since origin is in the middle but state
+            # is total distance between), and also convert to meters
+            # from mm
+            [-msg.position_mm*0.0005, msg.position_mm*0.0005],
+            ['wsg_50_base_joint_gripper_left', 'wsg_50_base_joint_gripper_right'])
+schunkDriver = DirectorSchunkDriver(statusSubscriberCallback=wsgStatusSubscriberCallback)
 
 
 def onOpenTaskPanel():
@@ -206,12 +197,6 @@ def showLinkFrame(name):
 
 def plotPlan():
     robotSystem.planPlayback.plotPlan(robotSystem.manipPlanner.lastManipPlan)
-
-
-def setGripperJointPositions(robotModel, pos):
-    robotModel.model.setJointPositions(
-        [pos, pos],
-        ['wsg_50_finger_left_joint', 'wsg_50_finger_right_joint'])
 
 
 def reloadIiwaPlanning():
@@ -272,11 +257,6 @@ app.addWidgetToDock(robotSystem.playbackPanel.widget, QtCore.Qt.BottomDockWidget
 setupToolBar()
 
 
-setGripperJointPositions(robotSystem.robotStateModel, 0.04)
-setGripperJointPositions(robotSystem.teleopRobotModel, 0.04)
-setGripperJointPositions(robotSystem.playbackRobotModel, 0.04)
-
-
 robotLinkSelector = robotlinkselector.RobotLinkSelector()
 viewBehaviors.addHandler(viewBehaviors.LEFT_DOUBLE_CLICK_EVENT, robotLinkSelector.onLeftDoubleClick)
 
@@ -297,8 +277,8 @@ if havePerceptionDrivers():
     try:
         import mytaskpanel
         taskPanel = mytaskpanel.MyTaskPanel(robotSystem, cameraView)
-        taskPanel.planner.openGripperFunc = gripperOpen
-        taskPanel.planner.closeGripperFunc = gripperClose
+        taskPanel.planner.openGripperFunc = schunkDriver.sendOpenGripperCommand
+        taskPanel.planner.closeGripperFunc = schunkDriver.sendCloseGripperCommand
 
         ip = mytaskpanel.iiwaplanning
     except:
@@ -342,6 +322,10 @@ app.restoreDefaultWindowState()
 app.initWindowSettings()
 applogic.resetCamera(viewDirection=[-1,1,-0.5], view=view)
 
+useROS = True
+if useROS:
+    import rospy
+    rospy.init_node('director', anonymous=True)
 
 useKukaRLGDev = True
 if useKukaRLGDev:
@@ -376,10 +360,3 @@ if useKukaRLGDev:
     point_a = [0.61, -0.1, 0.1]
     point_b = [0.61, 0.1, 0.1]
     points = [point_a, point_b]
-
-    # setup the director node
-
-useROS = True
-if useROS:
-    import rospy
-    rospy.init_node('director')
