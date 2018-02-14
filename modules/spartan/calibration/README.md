@@ -5,7 +5,7 @@
 ### Prepare to capture images
 
 - Decide the device's serial number or name
-- Create a new folder in `station_config/hand_eye_calibration` and create a new `.yaml` file.  Copy over the structure from another yaml file.
+- Create a new folder in `src/catkin_projects/station_config/hand_eye_calibration` and create a new `.yaml` file.  Copy over the structure from another yaml file.
 - Specify in `iiwamanipdev.py` what the name of this `.yaml` file is within `station_config`
 - Create a new folder in `camera_config` and copy over the structure from other folders
 - Rebuild catkin_project/fast
@@ -64,7 +64,7 @@ Remember to remove the projector-covering device!!
 
 ### Test the calibration quality
 
-Here are a few good simple tests:
+DO THESE TESTS:
 
 1. Verify in rviz that the frames (rgb and depth) generally look in the right spot
 
@@ -72,9 +72,10 @@ Here are a few good simple tests:
 
 3. Can even point robot at itself and see if the point cloud matches the urdf
 
+4. In RVIZ open `image_rect_color` and verify that it doesn't look distorted. A good way to do that is to look at the checkerboard and edges of the table.
+
 
 TODO
-- add picture of IR illuminators setup
 - later: clean up station_config structure (not just one cal.yaml)
 - extrinsics should live in station_config
 - adjust joint limits
