@@ -28,6 +28,7 @@ if __name__=="__main__":
 
 	image_name = args.image
 	home_directory = '/home/' + user_name
+	spartan_source_dir = os.path.join(home_directory, 'spartan')
 
 	cmd = "xhost +local:root \n"
 	cmd += "nvidia-docker run "
@@ -49,6 +50,12 @@ if __name__=="__main__":
 	% {'bazel_artifact_dir': bazel_artifact_dir, 'home_directory': home_directory}   # mount bazel build artifact dirs
 	cmd += " --user %s " % user_name                                                    # login as current user
 
+	# mount the data volume
+	if True:
+		data_directory_host_machine = '/home/'+user_name+'/data/spartan'
+		os.system("mkdir -p " + data_directory_host_machine)
+		cmd += " -v %s:%s/data_volume " %(data_directory_host_machine, spartan_source_dir)
+
 	# expose UDP ports
 	if not args.no_udp:
 		cmd += " -p 30200:30200/udp " # expose udp ports for kuka
@@ -61,6 +68,9 @@ if __name__=="__main__":
 	cmd += " --privileged -v /dev/bus/usb:/dev/bus/usb " # allow usb access
 
 	cmd += " --rm " # remove the image when you exit
+
+	# allow setting chrt priority by regular user inside container???
+	cmd += " --ulimit rtprio=30 "
 
 	if args.entrypoint and args.entrypoint != "":
 		cmd += "--entrypoint=\"%(entrypoint)s\" " % {"entrypoint": args.entrypoint}
