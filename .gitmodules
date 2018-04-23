@@ -3,8 +3,7 @@
 	url = https://github.com/RobotLocomotion/director/
 [submodule "drake"]
         path = drake
-        url = https://github.com/kmuhlrad/drake/
-	branch = stop_kuka_plan_runner
+	url = https://github.com/RobotLocomotion/drake.git
 [submodule "signal-scope"]
 	path = signal-scope
 	url = https://github.com/openhumanoids/signal-scope.git
