@@ -14,6 +14,11 @@ group "0.sim" {
     host = "localhost";
   }
 
+  cmd "1c.pybullet_kuka_simulation_find_object" {
+    exec = "rosrun rlg_simulation pybullet_iiwa_rlg_simulation.py $SPARTAN_SOURCE_DIR/src/catkin_projects/rlg_simulation/config/iiwa_workstation_find_object.yaml --headless";
+    host = "localhost";
+  }
+
   cmd "2.ROS-OpenNI-sim" {
     exec = "roslaunch camera_config openni2_pybullet_sim.launch camera_serial_number:=carmine_1";
     host = "localhost";
