@@ -240,3 +240,20 @@ script "5.start_ROS" {
   wait ms 3000;
   start group "8.ROS";
 }
+
+script "6.find_object_sim_pybullet_startup" {
+    start cmd "0.roscore";
+    start cmd "1c.pybullet_kuka_simulation_find_object";
+
+    wait ms 3000;
+    start cmd "0.LCM->ROS State Translator";
+    start cmd "2.ROS-OpenNI-sim";
+    start cmd "1.plan-runner";
+    start cmd "5.state-translator-sim";
+    start cmd "2.ROS Model and TF Publisher";
+    start cmd "1.ROS Trajectory Server";
+    start cmd "4.Robot Movement Service";
+    start cmd "5.IK Service";
+    wait ms 3000;
+    start cmd "4.director";
+}
