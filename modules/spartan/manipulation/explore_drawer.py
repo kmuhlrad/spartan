@@ -16,6 +16,8 @@ from tf.transformations import quaternion_from_euler
 import lcm
 from robotlocomotion import robot_plan_t
 
+import pdb
+
 class ExploreDrawer(object):
 
     def __init__(self, start_x, start_y, desired_z, drawer_width, drawer_height, end_effector_width, end_effector_height):
@@ -40,6 +42,8 @@ class ExploreDrawer(object):
 
         all_knot_points = [self.getJointPositions(point) for point in knot_points]
         self.joint_knot_points = [point for point in all_knot_points if point is not None]
+
+        #pdb.set_trace()
 
         print len(all_knot_points), len(self.joint_knot_points)
 
@@ -101,7 +105,7 @@ class ExploreDrawer(object):
             row_idx, col_idx = self.getRowColIdx(point, self.num_cols)
 
             x = self.start_x + self.cell_width*col_idx + self.cell_width/2.0
-            y = self.start_y - self.cell_height*row_idx - self.cell_height/2.0
+            y = self.start_y + self.cell_height*row_idx + self.cell_height/2.0
             z = self.desired_z
 
             knot_points.append([x, y, z])
@@ -143,10 +147,10 @@ class ExploreDrawer(object):
 
         response = self.robotService.runIK(poseStamped)
         if not response.success:
-            rospy.loginfo("ik was not successful, returning without moving robot")
+            #ospy.loginfo("ik was not successful, returning without moving robot")
             return
 
-        rospy.loginfo("ik was successful, returning joint position")
+        # rospy.loginfo("ik was successful, returning joint position")
         return response.joint_state.position
 
     def exploreDrawer(self):
