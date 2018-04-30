@@ -50,3 +50,6 @@
 [submodule "src/tsdf-fusion"]
 	path = src/tsdf-fusion
 	url = git@github.com:RobotLocomotion/tsdf-fusion.git
+[submodule "BlindGrasp"]
+	path = BlindGrasp
+	url = https://github.mit.edu/kmuhlrad/BlindGrasp.git
