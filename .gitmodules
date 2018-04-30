@@ -51,5 +51,6 @@
 	path = src/tsdf-fusion
 	url = git@github.com:RobotLocomotion/tsdf-fusion.git
 [submodule "BlindGrasp"]
-	path = BlindGrasp
+	path = src/catkin_projects/BlindGrasp
 	url = https://github.mit.edu/kmuhlrad/BlindGrasp.git
+	branch = km-6-832-project
