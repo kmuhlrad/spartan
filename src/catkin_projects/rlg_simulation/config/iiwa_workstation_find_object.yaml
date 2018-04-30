@@ -15,9 +15,9 @@ instances:
   - model: "cabinet_with_desktop"
     q0: [0.6, 0.0, 0.0, 0, 0, 1.57]
     fixed: true
-  - model: "white_bin"
-    q0: [0.6, -0.1, 0.735, 0., 0, 0]
-    fixed: true
-  - model: "companion_cube"
-    q0: [0.6, -0.1, 0.735, 0., 0, 0]
-    fixed: false
+  # - model: "white_bin"
+  #   q0: [0.6, 0.0, 0.735, 0., 0, 0]
+  #   fixed: true
+  # - model: "companion_cube"
+  #   q0: [0.6, 0.0, 0.735, 0., 0, 0]
+  #   fixed: false
