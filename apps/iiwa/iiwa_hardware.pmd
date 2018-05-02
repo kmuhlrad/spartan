@@ -19,6 +19,11 @@ group "0.sim" {
     host = "localhost";
   }
 
+  cmd "1d.pybullet_kuka_simulation_with_gelsight" {
+    exec = "rosrun rlg_simulation pybullet_iiwa_rlg_simulation_with_gelsight.py $SPARTAN_SOURCE_DIR/src/catkin_projects/rlg_simulation/config/iiwa_workstation_find_object.yaml --headless";
+    host = "localhost";
+  }
+
   cmd "2.ROS-OpenNI-sim" {
     exec = "roslaunch camera_config openni2_pybullet_sim.launch camera_serial_number:=carmine_1";
     host = "localhost";
@@ -192,6 +197,11 @@ group "9.Calibration" {
   }
 }
 
+cmd "9.director_with_gelsight" {
+  exec = "kuka_iiwa_gelsight";
+  host = "localhost";
+}
+
 script "1.robot_startup" {
     start group "1.vision-drivers";
     start group "2.iiwa-drivers";
@@ -256,4 +266,21 @@ script "6.find_object_sim_pybullet_startup" {
     start cmd "5.IK Service";
     wait ms 3000;
     start cmd "4.director";
+}
+
+script "7.find_object_with_gelsight_sim_pybullet_startup" {
+    start cmd "0.roscore";
+    start cmd "1d.pybullet_kuka_simulation_with_gelsight";
+
+    wait ms 3000;
+    start cmd "0.LCM->ROS State Translator";
+    start cmd "2.ROS-OpenNI-sim";
+    start cmd "1.plan-runner";
+    start cmd "5.state-translator-sim";
+    start cmd "2.ROS Model and TF Publisher";
+    start cmd "1.ROS Trajectory Server";
+    start cmd "4.Robot Movement Service";
+    start cmd "5.IK Service";
+    wait ms 3000;
+    start cmd "9.director_with_gelsight";
 }
