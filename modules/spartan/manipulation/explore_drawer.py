@@ -20,7 +20,7 @@ import pdb
 
 class ExploreDrawer(object):
 
-    def __init__(self, start_x, start_y, desired_z, drawer_width, drawer_height, end_effector_width, end_effector_height):
+    def __init__(self, start_x, start_y, desired_z, drawer_width, drawer_height, end_effector_width, end_effector_height, num_waypoints = 0):
         self.jointNames = (u'iiwa_joint_1', u'iiwa_joint_2', u'iiwa_joint_3', u'iiwa_joint_4', u'iiwa_joint_5', u'iiwa_joint_6', u'iiwa_joint_7')
         self.robotService = spartanROSUtils.RobotService(self.jointNames)
         self.currentJointPosition = [0]*len(self.jointNames)
@@ -35,10 +35,9 @@ class ExploreDrawer(object):
 
         self.num_rows, self.num_cols, self.cell_width, self.cell_height = self.calcGridInfo(drawer_width, drawer_height, end_effector_width, end_effector_height)
 
-        grid_goal_points = self.calcGridGoalPoints()
+        grid_goal_points = self.calcGridGoalPoints(num_waypoints)
 
-        print grid_goal_points
-
+        #print grid_goal_points
 
         knot_points = self.calcCartesianKnotPoints(grid_goal_points)
 
@@ -47,7 +46,7 @@ class ExploreDrawer(object):
 
         #pdb.set_trace()
 
-        print len(all_knot_points), len(self.joint_knot_points)
+        print "total knot points:", len(all_knot_points), "feasible knot points:", len(self.joint_knot_points)
 
         rospy.Subscriber("/joint_states", sensor_msgs.msg.JointState, self.storeCurrentJointPosition)
         rospy.Subscriber("/stop", std_msgs.msg.Bool, self.stopCurrentPoint)
@@ -74,8 +73,15 @@ class ExploreDrawer(object):
 
         return num_rows, num_cols, cell_width, cell_height
 
-    def calcGridGoalPoints(self):
+    def calcGridGoalPoints(self, num_waypoints = 0):
         goal_points = []
+
+        if 0 < num_waypoints < (self.num_rows - 1):
+            inc = int((self.num_rows - 2) / num_waypoints)
+        elif num_waypoints != 0:
+            inc = 1
+        else:
+            inc = 0
 
         if self.num_cols % 2 == 0:
             last_point = self.num_cols - 1
@@ -87,7 +93,17 @@ class ExploreDrawer(object):
         goal_points.append(point)
 
         while point != last_point:
-            point += direction * (self.num_rows - 1) * self.num_cols
+            endpoint = point + direction * (self.num_rows - 1) * self.num_cols
+            if inc > 0:
+                while True:
+                    point += direction*inc*self.num_cols
+                    if direction > 0 and point >= endpoint:
+                        break
+                    if direction < 0 and point <= endpoint:
+                        break
+                    goal_points.append(point)
+
+            point = endpoint
             goal_points.append(point)
 
             if point == last_point:
@@ -206,8 +222,8 @@ def main():
     end_effector_width = 0.012285
     end_effector_height = 0.019265
 
-    explore = ExploreDrawer(start_x, start_y, desired_z, drawer_width, drawer_height, end_effector_width, end_effector_height)
-    #explore.exploreDrawer()
+    explore = ExploreDrawer(start_x, start_y, desired_z, drawer_width, drawer_height, end_effector_width, end_effector_height, num_waypoints = 20)
+    explore.exploreDrawer()
     
     rospy.spin()
 
