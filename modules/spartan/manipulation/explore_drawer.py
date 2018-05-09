@@ -37,6 +37,8 @@ class ExploreDrawer(object):
 
         grid_goal_points = self.calcGridGoalPoints()
 
+        print grid_goal_points
+
 
         knot_points = self.calcCartesianKnotPoints(grid_goal_points)
 
@@ -85,7 +87,7 @@ class ExploreDrawer(object):
         goal_points.append(point)
 
         while point != last_point:
-            point += direction * self.num_rows * self.num_cols
+            point += direction * (self.num_rows - 1) * self.num_cols
             goal_points.append(point)
 
             if point == last_point:
@@ -205,7 +207,7 @@ def main():
     end_effector_height = 0.019265
 
     explore = ExploreDrawer(start_x, start_y, desired_z, drawer_width, drawer_height, end_effector_width, end_effector_height)
-    explore.exploreDrawer()
+    #explore.exploreDrawer()
     
     rospy.spin()
 
