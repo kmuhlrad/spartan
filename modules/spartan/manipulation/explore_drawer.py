@@ -46,6 +46,10 @@ class ExploreDrawer(object):
         self.joint_knot_points = [point for point in self.all_knot_points if point is not None]
         self.directions = [directions[i] for i in range(len(self.all_knot_points)) if self.all_knot_points[i] is not None]
         self.all_cartesian_points = [knot_points[i] for i in range(len(self.all_knot_points)) if self.all_knot_points[i] is not None]
+        self.cur_cart_point = self.all_cartesian_points[0]
+        self.cur_direction = self.directions[0]
+
+        self.not_hit = True
 
         #pdb.set_trace()
 
@@ -58,10 +62,23 @@ class ExploreDrawer(object):
     def storeCurrentJointPosition(self, msg):
         self.currentJointPosition = msg.position
 
-        if abs(msg.effort[0]) > 9000 and abs(msg.effort[2]) > 9000:
-            self.should_switch_modes = True
-            print "hit something"
-            # should also stop current plan
+        # if abs(msg.effort[0]) > 7000 and abs(msg.effort[2]) > 7000 and self.not_hit:
+        #     self.should_switch_modes = True
+        #     self.not_hit = False
+
+        #     rospy.loginfo("hit something, stopping robot")
+        #     lcm_msg = robot_plan_t()
+        #     lcm_msg.utime = 0
+        #     lc = lcm.LCM()
+        #     lc.publish("STOP", lcm_msg.encode())
+
+        #     new_points = self.calcNextFindObjectPoints(self.cur_cart_point, self.cur_direction)
+        #     for point in new_points:
+        #         if self.should_stop:
+        #             break
+        #         self.robotService.moveToJointPosition(point, self.maxJointDegreesPerSecond)
+        #         rospy.sleep(0.2)
+        #     self.not_hit = True
 
     def stopCurrentPoint(self, msg):
         if msg.data:
@@ -83,6 +100,12 @@ class ExploreDrawer(object):
             lc.publish("STOP", lcm_msg.encode())
 
             self.should_switch_modes = True
+
+            new_points = self.calcNextFindObjectPoints(self.cur_cart_point, self.cur_direction)
+            for point in new_points:
+                if self.should_stop:
+                    break
+                self.robotService.moveToJointPosition(point, self.maxJointDegreesPerSecond)
 
     def calcGridInfo(self, drawer_width, drawer_height, end_effector_width, end_effector_height):
         num_cols = int(drawer_width / end_effector_width)
@@ -169,16 +192,15 @@ class ExploreDrawer(object):
 
     def calcNextFindObjectPoints(self, current_cartesian_point, direction):
         next_cartesian_points = []
-        print direction
 
-        i = 2
+        i = 1
         ik_failed = True
         while ik_failed:
             # 2 cells away from the contact point
             next_cartesian_points = []
 
             next_point = list(current_cartesian_point)
-            next_point[1] = current_cartesian_point[1] - direction*2*i*self.cell_height
+            next_point[1] = current_cartesian_point[1] - direction*i*self.cell_height
             next_cartesian_points.append(next_point)
 
             # 2 cells down from the contact points
@@ -186,8 +208,10 @@ class ExploreDrawer(object):
             next_cartesian_points.append(next_point)
 
             # 4 cells towards the object at the new x-value
-            next_point[1] = next_point[1] + direction*2*2*i*self.cell_height
+            next_point[1] = next_point[1] + direction*2*i*self.cell_height
             next_cartesian_points.append(next_point)
+
+            self.cur_cart_point = next_point
 
             joint_positions = [self.getJointPositions(point, direction) for point in next_cartesian_points]
 
@@ -237,15 +261,17 @@ class ExploreDrawer(object):
         new_points = []
         for (i, point) in enumerate(self.joint_knot_points):
             if self.should_switch_modes:
-                new_points = self.calcNextFindObjectPoints(self.all_cartesian_points[i], self.directions[i])
+                # new_points = self.calcNextFindObjectPoints(self.all_cartesian_points[i], self.directions[i])
                 break
             if self.should_stop:
                 break
+            self.cur_cart_point = self.all_cartesian_points[i]
+            self.cur_direction = self.directions[i]
             self.robotService.moveToJointPosition(point, self.maxJointDegreesPerSecond)
-        for point in new_points:
-            if self.should_stop:
-                break
-            self.robotService.moveToJointPosition(point, self.maxJointDegreesPerSecond)
+        # for point in new_points:
+        #     if self.should_stop:
+        #         break
+        #     self.robotService.moveToJointPosition(point, self.maxJointDegreesPerSecond)
         print "done sweeping"
 
 '''
@@ -282,12 +308,12 @@ to match whatever format the points are input in.
 def main():
     rospy.init_node('explore_object_node')
 
-    start_x = 0.355
-    start_y = -0.29
+    start_x = 0.5 #0.355
+    start_y = -0.1 #-0.29
     desired_z = 0.93
 
-    drawer_width = 0.49177
-    drawer_height = 0.60329
+    drawer_width = 0.3 #0.49177
+    drawer_height = 0.3 #0.60329
 
     end_effector_width = 0.012285
     end_effector_height = 0.019265
