@@ -32,27 +32,36 @@ class ExploreDrawer(object):
         self.desired_z = desired_z
 
         self.should_stop = False
+        self.should_switch_modes = False
 
         self.num_rows, self.num_cols, self.cell_width, self.cell_height = self.calcGridInfo(drawer_width, drawer_height, end_effector_width, end_effector_height)
 
-        grid_goal_points = self.calcGridGoalPoints(num_waypoints)
+        grid_goal_points, directions = self.calcGridGoalPoints(num_waypoints)
 
         #print grid_goal_points
 
         knot_points = self.calcCartesianKnotPoints(grid_goal_points)
 
-        all_knot_points = [self.getJointPositions(point) for point in knot_points]
-        self.joint_knot_points = [point for point in all_knot_points if point is not None]
+        self.all_knot_points = [self.getJointPositions(point, directions[i]) for (i, point) in enumerate(knot_points)]
+        self.joint_knot_points = [point for point in self.all_knot_points if point is not None]
+        self.directions = [directions[i] for i in range(len(self.all_knot_points)) if self.all_knot_points[i] is not None]
+        self.all_cartesian_points = [knot_points[i] for i in range(len(self.all_knot_points)) if self.all_knot_points[i] is not None]
 
         #pdb.set_trace()
 
-        print "total knot points:", len(all_knot_points), "feasible knot points:", len(self.joint_knot_points)
+        print "total knot points:", len(self.all_knot_points), "feasible knot points:", len(self.joint_knot_points)
 
         rospy.Subscriber("/joint_states", sensor_msgs.msg.JointState, self.storeCurrentJointPosition)
         rospy.Subscriber("/stop", std_msgs.msg.Bool, self.stopCurrentPoint)
+        rospy.Subscriber("/hit_object", std_msgs.msg.Bool, self.switchToFindObject)
 
     def storeCurrentJointPosition(self, msg):
         self.currentJointPosition = msg.position
+
+        if abs(msg.effort[0]) > 9000 and abs(msg.effort[2]) > 9000:
+            self.should_switch_modes = True
+            print "hit something"
+            # should also stop current plan
 
     def stopCurrentPoint(self, msg):
         if msg.data:
@@ -63,6 +72,17 @@ class ExploreDrawer(object):
             lc.publish("STOP", lcm_msg.encode())
 
             self.should_stop = True
+
+    def switchToFindObject(self, msg):
+        # gripper contact: effort[2] becomes 10000, 0,1 also become large (order 9000 instead of 2/90)
+        if msg.data:
+            rospy.loginfo("stopping robot")
+            lcm_msg = robot_plan_t()
+            lcm_msg.utime = 0
+            lc = lcm.LCM()
+            lc.publish("STOP", lcm_msg.encode())
+
+            self.should_switch_modes = True
 
     def calcGridInfo(self, drawer_width, drawer_height, end_effector_width, end_effector_height):
         num_cols = int(drawer_width / end_effector_width)
@@ -75,6 +95,7 @@ class ExploreDrawer(object):
 
     def calcGridGoalPoints(self, num_waypoints = 0):
         goal_points = []
+        directions = []
 
         if 0 < num_waypoints < (self.num_rows - 1):
             inc = int((self.num_rows - 2) / num_waypoints)
@@ -91,6 +112,7 @@ class ExploreDrawer(object):
         point = 0
         direction = 1
         goal_points.append(point)
+        directions.append(direction)
 
         while point != last_point:
             endpoint = point + direction * (self.num_rows - 1) * self.num_cols
@@ -102,19 +124,22 @@ class ExploreDrawer(object):
                     if direction < 0 and point <= endpoint:
                         break
                     goal_points.append(point)
+                    directions.append(direction)
 
             point = endpoint
             goal_points.append(point)
+            directions.append(direction)
 
             if point == last_point:
                 break
             
             point += 1
             goal_points.append(point)
+            directions.append(direction)
 
             direction = -direction
         
-        return goal_points
+        return goal_points, directions
 
     def calcCartesianKnotPoints(self, grid_goal_points):
         knot_points = []
@@ -142,18 +167,55 @@ class ExploreDrawer(object):
 
         return row_idx, col_idx
 
+    def calcNextFindObjectPoints(self, current_cartesian_point, direction):
+        next_cartesian_points = []
+        print direction
+
+        i = 2
+        ik_failed = True
+        while ik_failed:
+            # 2 cells away from the contact point
+            next_cartesian_points = []
+
+            next_point = list(current_cartesian_point)
+            next_point[1] = current_cartesian_point[1] - direction*2*i*self.cell_height
+            next_cartesian_points.append(next_point)
+
+            # 2 cells down from the contact points
+            next_point[0] = next_point[0] + i*self.cell_width
+            next_cartesian_points.append(next_point)
+
+            # 4 cells towards the object at the new x-value
+            next_point[1] = next_point[1] + direction*2*2*i*self.cell_height
+            next_cartesian_points.append(next_point)
+
+            joint_positions = [self.getJointPositions(point, direction) for point in next_cartesian_points]
+
+            for point in joint_positions:
+                if point is not None:
+                    ik_failed = False
+                else:
+                    ik_failed = True
+                    i += 1
+                    break
+
+        return joint_positions
+
     '''
     cartesian_point is a list of 3 floats for x, y, and z (ex: [0.1, 0.2, 0.3])
     This format can be changed to reflect how the points are estimated from the point cloud.
     '''
-    def getJointPositions(self, cartesian_point):
+    def getJointPositions(self, cartesian_point, direction):
         pose = geometry_msgs.msg.Pose()
         pose.position.x = cartesian_point[0]
         pose.position.y = cartesian_point[1]
         pose.position.z = cartesian_point[2]
 
         # The gripper should be pointing straight down.
-        quat = quaternion_from_euler(0, pi/2, 0)
+        if direction >= 0:
+            quat = quaternion_from_euler(pi/7, pi/2, 0)
+        else:
+            quat = quaternion_from_euler(pi + pi/7, pi/2, 0)
         pose.orientation.x = quat[0]
         pose.orientation.y = quat[1]
         pose.orientation.z = quat[2]
@@ -165,14 +227,22 @@ class ExploreDrawer(object):
 
         response = self.robotService.runIK(poseStamped)
         if not response.success:
-            #ospy.loginfo("ik was not successful, returning without moving robot")
+            #rospy.loginfo("ik was not successful, returning without moving robot")
             return
 
         # rospy.loginfo("ik was successful, returning joint position")
         return response.joint_state.position
 
     def exploreDrawer(self):
-        for point in self.joint_knot_points:
+        new_points = []
+        for (i, point) in enumerate(self.joint_knot_points):
+            if self.should_switch_modes:
+                new_points = self.calcNextFindObjectPoints(self.all_cartesian_points[i], self.directions[i])
+                break
+            if self.should_stop:
+                break
+            self.robotService.moveToJointPosition(point, self.maxJointDegreesPerSecond)
+        for point in new_points:
             if self.should_stop:
                 break
             self.robotService.moveToJointPosition(point, self.maxJointDegreesPerSecond)
