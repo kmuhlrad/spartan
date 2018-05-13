@@ -62,23 +62,24 @@ class ExploreDrawer(object):
     def storeCurrentJointPosition(self, msg):
         self.currentJointPosition = msg.position
 
-        # if abs(msg.effort[0]) > 7000 and abs(msg.effort[2]) > 7000 and self.not_hit:
-        #     self.should_switch_modes = True
-        #     self.not_hit = False
+        if abs(msg.effort[0]) > 7000 and abs(msg.effort[2]) > 7000 and self.not_hit:
+            self.should_switch_modes = True
+            # self.should_stop = True
+            # self.not_hit = False
 
-        #     rospy.loginfo("hit something, stopping robot")
-        #     lcm_msg = robot_plan_t()
-        #     lcm_msg.utime = 0
-        #     lc = lcm.LCM()
-        #     lc.publish("STOP", lcm_msg.encode())
+            rospy.loginfo("hit something, stopping robot")
+            lcm_msg = robot_plan_t()
+            lcm_msg.utime = 0
+            lc = lcm.LCM()
+            lc.publish("STOP", lcm_msg.encode())
 
-        #     new_points = self.calcNextFindObjectPoints(self.cur_cart_point, self.cur_direction)
-        #     for point in new_points:
-        #         if self.should_stop:
-        #             break
-        #         self.robotService.moveToJointPosition(point, self.maxJointDegreesPerSecond)
-        #         rospy.sleep(0.2)
-        #     self.not_hit = True
+            # new_points = self.calcNextFindObjectPoints(self.cur_cart_point, self.cur_direction)
+            # for point in new_points:
+            #     if self.should_stop:
+            #         break
+            #     self.robotService.moveToJointPosition(point, self.maxJointDegreesPerSecond)
+            #     rospy.sleep(0.2)
+            # self.not_hit = True
 
     def stopCurrentPoint(self, msg):
         if msg.data:
@@ -101,11 +102,11 @@ class ExploreDrawer(object):
 
             self.should_switch_modes = True
 
-            new_points = self.calcNextFindObjectPoints(self.cur_cart_point, self.cur_direction)
-            for point in new_points:
-                if self.should_stop:
-                    break
-                self.robotService.moveToJointPosition(point, self.maxJointDegreesPerSecond)
+            # new_points = self.calcNextFindObjectPoints(self.cur_cart_point, self.cur_direction)
+            # for point in new_points:
+            #     if self.should_stop:
+            #         break
+            #     self.robotService.moveToJointPosition(point, self.maxJointDegreesPerSecond)
 
     def calcGridInfo(self, drawer_width, drawer_height, end_effector_width, end_effector_height):
         num_cols = int(drawer_width / end_effector_width)
@@ -200,18 +201,24 @@ class ExploreDrawer(object):
             next_cartesian_points = []
 
             next_point = list(current_cartesian_point)
-            next_point[1] = current_cartesian_point[1] - direction*i*self.cell_height
-            next_cartesian_points.append(next_point)
+            for j in range(2):
+                next_point[1] = next_point[1] - direction*i*self.cell_height
+                next_cartesian_points.append(tuple(next_point))
+                self.cur_cart_point = tuple(next_point)
 
             # 2 cells down from the contact points
             next_point[0] = next_point[0] + i*self.cell_width
-            next_cartesian_points.append(next_point)
+            next_cartesian_points.append(tuple(next_point))
+            self.cur_cart_point = tuple(next_point)
 
             # 4 cells towards the object at the new x-value
-            next_point[1] = next_point[1] + direction*2*i*self.cell_height
-            next_cartesian_points.append(next_point)
+            for j in range(3):
+                next_point[1] = next_point[1] + direction*i*self.cell_height
+                next_cartesian_points.append(tuple(next_point))
+                self.cur_cart_point = tuple(next_point)
 
-            self.cur_cart_point = next_point
+            # self.cur_cart_point = tuple(next_point)
+            print next_cartesian_points
 
             joint_positions = [self.getJointPositions(point, direction) for point in next_cartesian_points]
 
@@ -260,19 +267,35 @@ class ExploreDrawer(object):
     def exploreDrawer(self):
         new_points = []
         for (i, point) in enumerate(self.joint_knot_points):
-            if self.should_switch_modes:
-                # new_points = self.calcNextFindObjectPoints(self.all_cartesian_points[i], self.directions[i])
+            if not self.should_stop and not self.should_switch_modes:
+                self.cur_cart_point = self.all_cartesian_points[i]
+                self.cur_direction = self.directions[i]
+                self.robotService.moveToJointPosition(point, self.maxJointDegreesPerSecond)
+            elif self.should_stop:
                 break
+            elif self.should_switch_modes:
+                new_points = self.calcNextFindObjectPoints(self.cur_cart_point, self.cur_direction)
+                for point in new_points:
+                    if self.should_stop:
+                        break
+                    self.robotService.moveToJointPosition(point, self.maxJointDegreesPerSecond)
+                break
+        while not rospy.is_shutdown():
             if self.should_stop:
-                break
-            self.cur_cart_point = self.all_cartesian_points[i]
-            self.cur_direction = self.directions[i]
-            self.robotService.moveToJointPosition(point, self.maxJointDegreesPerSecond)
+                continue
+            if self.should_switch_modes:
+                new_points = self.calcNextFindObjectPoints(self.cur_cart_point, self.cur_direction)
+                self.should_switch_modes = False
+                for point in new_points:
+                    if self.should_stop or self.should_switch_modes:
+                        break
+                    self.robotService.moveToJointPosition(point, self.maxJointDegreesPerSecond)
+            
         # for point in new_points:
         #     if self.should_stop:
         #         break
         #     self.robotService.moveToJointPosition(point, self.maxJointDegreesPerSecond)
-        print "done sweeping"
+        print "done"
 
 '''
 How to run this demo:
@@ -310,7 +333,7 @@ def main():
 
     start_x = 0.5 #0.355
     start_y = -0.1 #-0.29
-    desired_z = 0.93
+    desired_z = 0.925
 
     drawer_width = 0.3 #0.49177
     drawer_height = 0.3 #0.60329

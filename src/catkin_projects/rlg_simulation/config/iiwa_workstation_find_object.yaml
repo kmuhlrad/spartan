@@ -2,6 +2,8 @@ models:
   cabinet_with_desktop: "${SPARTAN_SOURCE_DIR}/models/rlg_misc_models/cabinet_with_desktop.urdf"
   white_bin: "${SPARTAN_SOURCE_DIR}/models/rlg_misc_models/white_bin.urdf"
   companion_cube: "${SPARTAN_SOURCE_DIR}/models/rlg_misc_models/companion_cube.urdf"
+  flat_gelsight: "${SPARTAN_SOURCE_DIR}/models/rlg_misc_models/flat_gelsight.urdf"
+  strawberry: "${SPARTAN_SOURCE_DIR}/models/rlg_misc_models/012_strawberry_berkeley_processed.urdf"
 
 with_ground: true
 
@@ -18,6 +20,6 @@ instances:
   # - model: "white_bin"
   #   q0: [0.6, 0.0, 0.735, 0., 0, 0]
   #   fixed: true
-  # - model: "companion_cube"
-  #   q0: [0.6, 0.0, 0.735, 0., 0, 0]
-  #   fixed: false
+  - model: "strawberry"
+    q0: [0.53, 0.03, 0.745, 0., 0, 0]
+    fixed: true
