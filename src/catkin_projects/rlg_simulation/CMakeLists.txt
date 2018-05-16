@@ -143,6 +143,7 @@ endif()
 install(PROGRAMS
     scripts/pybullet_passive_simulation_from_config.py
     scripts/pybullet_iiwa_rlg_simulation.py
+    scripts/pybullet_iiwa_rlg_simulation_with_gelsight.py
     DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
