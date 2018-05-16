@@ -144,7 +144,7 @@ def load_pybullet_from_urdf_or_sdf(inp_path, position = [0, 0, 0], quaternion = 
         if 'strawberry' in full_path:
             # Based on code from Achu Wilson (achuwilson@gmail.com)
             # as a part of the BlindGrasp project http://achuwilson.github.io/projects/blindgrasp
-            strawberry = pybullet.createCollisionShape(pybullet.GEOM_MESH, fileName="/home/katy/spartan/models/rlg_misc_models/meshes/collision/strawberry.obj", flags=pybullet.GEOM_FORCE_CONCAVE_TRIMESH)
+            strawberry = pybullet.createCollisionShape(pybullet.GEOM_MESH, fileName="/home/katy/spartan/models/ycb_models/meshes/collision/strawberry.obj", flags=pybullet.GEOM_FORCE_CONCAVE_TRIMESH)
             # This prevents bullet from doing physics on the strawberry
             strawberry_mass = 0
             return pybullet.createMultiBody(strawberry_mass, strawberry, -1, position, quaternion)
