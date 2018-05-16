@@ -8,7 +8,7 @@ models:
 with_ground: true
 
 robot:
-  base_pose: [0.0, 0.0, 0.7645, 0.0, 0.0, 0.0] #0.7645
+  base_pose: [0.0, 0.0, 0.7645, 0.0, 0.0, 0.0]
 
 instances:
   - model: "cabinet_with_desktop"
@@ -17,9 +17,9 @@ instances:
   - model: "cabinet_with_desktop"
     q0: [0.6, 0.0, 0.0, 0, 0, 1.57]
     fixed: true
-  # - model: "white_bin"
-  #   q0: [0.6, 0.0, 0.735, 0., 0, 0]
-  #   fixed: true
+  - model: "white_bin"
+    q0: [0.6, 0.0, 0.735, 0., 0, 0]
+    fixed: true
   - model: "strawberry"
-    q0: [0.53, 0.03, 0.745, 0., 0, 0]
+    q0: [0.525, 0.03, 0.745, 0., 0, 0]
     fixed: true

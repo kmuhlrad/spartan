@@ -143,7 +143,7 @@ group "8.ROS" {
   }
 
   cmd "3.rviz" {
-    exec = "rosrun rviz rviz -d $SPARTAN_SOURCE_DIR/src/catkin_projects/station_config/RLG_iiwa_1/rviz.rviz";
+    exec = "rosrun rviz rviz -d $SPARTAN_SOURCE_DIR/src/catkin_projects/station_config/RLG_iiwa_1/gelsight.rviz";
     host = "localhost";
   }
 
