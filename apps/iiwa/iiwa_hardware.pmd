@@ -283,4 +283,5 @@ script "7.find_object_with_gelsight_sim_pybullet_startup" {
     start cmd "5.IK Service";
     wait ms 3000;
     start cmd "9.director_with_gelsight";
+    start cmd "3.rviz";
 }

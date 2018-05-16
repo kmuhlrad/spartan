@@ -291,7 +291,7 @@ class IiwaRlgSimulator():
         self.depth_publisher = rospy.Publisher(camera_topics['DEPTH_TOPIC'], sensor_msgs.msg.Image, queue_size=1)
         self.rgb_info_publisher = rospy.Publisher(camera_topics['RGB_INFO_TOPIC'], sensor_msgs.msg.CameraInfo, queue_size=1)
         self.depth_info_publisher = rospy.Publisher(camera_topics['DEPTH_INFO_TOPIC'], sensor_msgs.msg.CameraInfo, queue_size=1)
-        self.gelsight_pcl_publisher = rospy.Publisher("/gelsight_pcl", sensor_msgs.msg.PointCloud2)
+        self.gelsight_pcl_publisher = rospy.Publisher("/gelsight_pcl", sensor_msgs.msg.PointCloud2, queue_size=1)
         self.cv_bridge = CvBridge()
 
         rospy.Subscriber("/hit_object", std_msgs.msg.Bool, self.GetGelsightRay)
@@ -409,7 +409,7 @@ class IiwaRlgSimulator():
             v_pixels = np.linspace(start_corner_y, start_corner_y + gelsight_height, num_v_pixel)
 
             point_cloud_data = []
-            gel_depth = 0.1
+            gel_depth = 0.01
 
             hcnt = 0
             vcnt = 0
@@ -423,8 +423,8 @@ class IiwaRlgSimulator():
                     ray_to = np.dot(transform, np.array([x, y, gel_depth, 1]))[:3]
 
                     ray_data = pybullet.rayTest(ray_from, ray_to)
-                    if ray_data[0][0] == 4:
-                        point_cloud_data.append((hcnt, vcnt, -1*ray_data[0][2]/gel_depth))
+                    if ray_data[0][0] == self.object_ids[-1]:
+                        point_cloud_data.append((hcnt, vcnt, -0.1*ray_data[0][2]/gel_depth))
 
             header = std_msgs.msg.Header()
             header.stamp = rospy.Time.now()

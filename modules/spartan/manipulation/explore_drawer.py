@@ -51,7 +51,9 @@ class ExploreDrawer(object):
 
         rospy.Subscriber("/joint_states", sensor_msgs.msg.JointState, self.storeCurrentJointPosition)
         rospy.Subscriber("/stop", std_msgs.msg.Bool, self.stopCurrentPoint)
-        rospy.Subscriber("/hit_object", std_msgs.msg.Bool, self.switchToFindObjectMode)
+        rospy.Subscriber("/switch_to_edge_exploration", std_msgs.msg.Bool, self.switchToEdgeExplorationMode)
+
+        self.hit_object_publisher = rospy.Publisher("/hit_object", std_msgs.msg.Bool, queue_size=1)
 
     def sendStopRobotCommand(self):
         rospy.loginfo("stopping robot")
@@ -63,21 +65,26 @@ class ExploreDrawer(object):
     def storeCurrentJointPosition(self, msg):
         self.cur_joint_position = msg.position
 
-        contact_force_threshold = 7000
+        contact_force_threshold_0 = 7000
+        contact_force_threshold_2 = 7000
 
-        if abs(msg.effort[0]) > contact_force_threshold and abs(msg.effort[2]) > contact_force_threshold and not self.in_contact:
+        if abs(msg.effort[0]) > contact_force_threshold_0 and abs(msg.effort[2]) > contact_force_threshold_2 and not self.in_contact:
             rospy.loginfo("hit something")
             self.sendStopRobotCommand()
 
             self.should_switch_modes = True
             self.in_contact = True
 
+            hit_object_msg = std_msgs.msg.Bool()
+            hit_object_msg.data = True
+            self.hit_object_publisher.publish(hit_object_msg)
+
     def stopCurrentPoint(self, msg):
         if msg.data:
             self.sendStopRobotCommand()
             self.should_stop = True
 
-    def switchToFindObjectMode(self, msg):
+    def switchToEdgeExplorationMode(self, msg):
         if msg.data:
             self.sendStopRobotCommand()
             self.should_switch_modes = True
@@ -170,7 +177,7 @@ class ExploreDrawer(object):
 
         num_grid_cells = 1
         cells_away = 2
-        cells_towards = 3
+        cells_towards = 5
 
         next_point = list(current_cartesian_point)
 
@@ -244,13 +251,13 @@ class ExploreDrawer(object):
                 for point in search_points:
                     if self.should_stop or self.should_switch_modes:
                         break
-                        
+
                     self.cur_cartesian_point = point
                     joint_position = self.getJointPositions(point, self.cur_direction)
 
                     
-
-                    self.robot_service.moveToJointPosition(joint_position, self.max_joint_deg_per_sec)
+                    if joint_position is not None:
+                        self.robot_service.moveToJointPosition(joint_position, self.max_joint_deg_per_sec)
                     self.in_contact = False
             
         print "done"
