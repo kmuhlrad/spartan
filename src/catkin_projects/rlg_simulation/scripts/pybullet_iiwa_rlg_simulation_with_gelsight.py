@@ -396,6 +396,7 @@ class IiwaRlgSimulator():
             gelsight_pos = link_state[0]
             gelsight_orn = link_state[1]
 
+            # TODO(kmuhlrad): use the spartan transformation util
             R = np.array(pybullet.getMatrixFromQuaternion(gelsight_orn)).reshape((3, 3))
             transform = np.zeros((4, 4))
             transform[:3, :3] = -R
@@ -409,7 +410,7 @@ class IiwaRlgSimulator():
             v_pixels = np.linspace(start_corner_y, start_corner_y + gelsight_height, num_v_pixel)
 
             point_cloud_data = []
-            gel_depth = 0.01
+            gel_depth = 0.1
 
             hcnt = 0
             vcnt = 0
@@ -424,7 +425,7 @@ class IiwaRlgSimulator():
 
                     ray_data = pybullet.rayTest(ray_from, ray_to)
                     if ray_data[0][0] == self.object_ids[-1]:
-                        point_cloud_data.append((hcnt, vcnt, -0.1*ray_data[0][2]/gel_depth))
+                        point_cloud_data.append((hcnt, vcnt, -1*ray_data[0][2]/gel_depth))
 
             header = std_msgs.msg.Header()
             header.stamp = rospy.Time.now()
